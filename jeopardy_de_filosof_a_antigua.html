@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeopardy: Filosofía Antigua</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Lora', serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #f8fafc; /* Slate 50 */
+            overflow-x: hidden;
+        }
+        h1, h2, h3, .jeopardy-font {
+            font-family: 'Cinzel', serif;
+        }
+        
+        /* Estilos específicos del tablero de Jeopardy */
+        .jeopardy-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 4px;
+            background-color: #000;
+            padding: 4px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .jeopardy-header {
+            background-color: #1e3a8a; /* Blue 900 */
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            font-weight: bold;
+            font-size: clamp(0.8rem, 2vw, 1.25rem);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            border-bottom: 4px solid #000;
+        }
+
+        .jeopardy-cell {
+            background-color: #2563eb; /* Blue 600 */
+            color: #fbbf24; /* Amber 400 - Amarillo clásico de Jeopardy */
+            text-align: center;
+            padding: 2rem 1rem;
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .jeopardy-cell:hover:not(.disabled) {
+            background-color: #3b82f6; /* Blue 500 */
+            transform: scale(0.98);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .jeopardy-cell.disabled {
+            background-color: #1e3a8a; /* Blue 900 oscuro */
+            color: transparent;
+            cursor: not-allowed;
+        }
+        
+        .jeopardy-cell.disabled::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 2px;
+            background-color: rgba(0,0,0,0.3);
+            display: none; /* Opcional: línea tachada */
+        }
+
+        /* Estilos del Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background-color: #2563eb; /* Blue 600 */
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 4px solid #1e3a8a;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+
+        .question-text {
+            font-size: clamp(1.5rem, 3vw, 2.5rem);
+            margin-bottom: 2rem;
+            line-height: 1.4;
+            font-family: 'Cinzel', serif;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (min-width: 640px) {
+            .options-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .option-btn {
+            background-color: #1e40af; /* Blue 800 */
+            color: white;
+            padding: 1rem;
+            border: 2px solid #60a5fa; /* Blue 400 */
+            border-radius: 8px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+
+        .option-btn:hover {
+            background-color: #3b82f6;
+            border-color: #bfdbfe;
+        }
+        
+        .option-btn.correct {
+            background-color: #16a34a; /* Green 600 */
+            border-color: #86efac;
+            color: white;
+        }
+
+        .option-btn.incorrect {
+            background-color: #dc2626; /* Red 600 */
+            border-color: #fca5a5;
+            color: white;
+        }
+
+        /* Estilos del Temporizador y Puntuación */
+        .hud-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: rgba(15, 23, 42, 0.9);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #334155;
+            position: sticky;
+            top: 0;
+            z-index: 40;
+        }
+
+        .timer {
+            font-size: 2rem;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            color: #f87171; /* Red 400 */
+            text-shadow: 0 0 10px rgba(248, 113, 113, 0.5);
+        }
+
+        .timer.warning {
+            color: #ef4444; /* Red 500 */
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .score {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #fbbf24; /* Amber 400 */
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        /* Pantallas de Fin de Juego */
+        .end-screen {
+            position: fixed;
+            inset: 0;
+            background-color: #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            text-align: center;
+            padding: 2rem;
+            display: none;
+        }
+        
+        .end-screen.active {
+            display: flex;
+        }
+
+        .btn-primary {
+            background-color: #fbbf24;
+            color: #0f172a;
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            text-transform: uppercase;
+            font-family: 'Cinzel', serif;
+            margin-top: 2rem;
+        }
+
+        .btn-primary:hover {
+            background-color: #f59e0b;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Heads Up Display (Temporizador y Puntuación) -->
+    <div class="hud-container shadow-lg">
+        <div>
+            <span class="text-gray-400 text-sm uppercase tracking-wider block">Tiempo Restante</span>
+            <div id="timer" class="timer">10:00</div>
+        </div>
+        
+        <div class="text-center">
+            <h1 class="text-2xl md:text-4xl text-blue-400 font-bold uppercase tracking-widest jeopardy-font">Jeopardy</h1>
+            <p class="text-xs md:text-sm text-gray-300 tracking-widest">Filosofía Antigua</p>
+        </div>
+
+        <div class="text-right">
+            <span class="text-gray-400 text-sm uppercase tracking-wider block">Puntuación</span>
+            <div id="score" class="score">$0</div>
+        </div>
+    </div>
+
+    <!-- Contenedor Principal del Juego -->
+    <main class="flex-grow flex items-center justify-center p-2 md:p-6 pb-20">
+        <div class="w-full max-w-7xl mx-auto">
+            
+            <!-- El Tablero de Jeopardy -->
+            <div class="jeopardy-board" id="jeopardy-board">
+                <!-- Los encabezados y celdas se generarán mediante JavaScript -->
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal para las Preguntas -->
+    <div id="question-modal" class="modal-overlay">
+        <div class="modal-content relative">
+            <div class="absolute top-4 right-4 text-blue-300 font-bold font-mono text-xl" id="modal-value">$200</div>
+            <div class="absolute top-4 left-4 text-blue-300 font-bold uppercase text-sm tracking-wider" id="modal-category">Categoría</div>
+            
+            <div class="mt-8 mb-6">
+                <p id="question-text" class="question-text">¿Aquí irá la pregunta filosófica?</p>
+            </div>
+            
+            <!-- Opciones de respuesta múltiple -->
+            <div id="options-container" class="options-grid">
+                <!-- Los botones de opciones se inyectarán aquí -->
+            </div>
+
+            <!-- Botón para cerrar (inicialmente oculto, aparece tras responder) -->
+            <button id="close-modal-btn" class="btn-primary w-full mt-4" style="display: none;">Continuar</button>
+            
+            <!-- Feedback visual rápido -->
+            <div id="feedback-message" class="mt-4 text-xl font-bold h-8 hidden"></div>
+        </div>
+    </div>
+
+    <!-- Pantalla de Inicio -->
+    <div id="start-screen" class="end-screen active">
+        <h1 class="text-5xl md:text-7xl font-bold text-blue-400 mb-4 jeopardy-font tracking-widest">JEOPARDY</h1>
+        <h2 class="text-2xl md:text-3xl text-gray-300 mb-8 italic">Edición: Filosofía Antigua</h2>
+        <div class="max-w-2xl text-lg text-gray-400 mb-10 space-y-4">
+            <p>Pon a prueba tus conocimientos sobre los grandes pensadores de la antigüedad.</p>
+            <ul class="text-left list-disc pl-8 space-y-2">
+                <li>Tienes <strong>10 minutos</strong> en total para responder la mayor cantidad de preguntas.</li>
+                <li>Selecciona una categoría y un valor.</li>
+                <li>Las preguntas son de opción múltiple.</li>
+                <li>Acertar suma el valor, fallar resta el valor. ¡Piensa bien!</li>
+            </ul>
+        </div>
+        <button id="start-btn" class="btn-primary text-2xl px-12 py-4">Iniciar Juego</button>
+    </div>
+
+    <!-- Pantalla de Fin de Juego (Tiempo Agotado) -->
+    <div id="timeout-screen" class="end-screen">
+        <h2 class="text-5xl font-bold text-red-500 mb-4 jeopardy-font">¡Tiempo Agotado!</h2>
+        <p class="text-2xl text-gray-300 mb-2">El ágora ha cerrado sus puertas.</p>
+        <p class="text-xl text-gray-400 mb-8">Tu sabiduría acumulada es:</p>
+        <div class="text-7xl font-bold text-yellow-400 font-mono mb-10" id="final-score-timeout">$0</div>
+        <button class="btn-primary restart-btn">Jugar de Nuevo</button>
+    </div>
+
+    <!-- Pantalla de Fin de Juego (Tablero Limpio) -->
+    <div id="victory-screen" class="end-screen">
+        <h2 class="text-5xl font-bold text-green-400 mb-4 jeopardy-font">¡Tablero Completado!</h2>
+        <p class="text-2xl text-gray-300 mb-2">Eres un verdadero filósofo rey.</p>
+        <p class="text-xl text-gray-400 mb-8">Tu fortuna intelectual asciende a:</p>
+        <div class="text-7xl font-bold text-yellow-400 font-mono mb-10" id="final-score-victory">$0</div>
+        <button class="btn-primary restart-btn">Reflexionar de Nuevo (Reiniciar)</button>
+    </div>
+
+    <script>
+        // Estado del Juego
+        let score = 0;
+        let timeLeft = 10 * 60; // 10 minutos en segundos
+        let timerInterval = null;
+        let answeredQuestions = 0;
+        const totalQuestions = 25;
+        let currentQuestionData = null;
+        let currentCellElement = null;
+
+        // Base de Datos de Preguntas (Nivel Intermedio)
+        const gameData = [
+            {
+                category: "Presocráticos",
+                questions: [
+                    { value: 200, question: "Afirmaba que el principio (arjé) de todas las cosas es el agua.", options: ["Tales de Mileto", "Anaximandro", "Anaxímenes", "Heráclito"], answer: 0 },
+                    { value: 400, question: "Famoso por su doctrina del devenir: 'Nadie se baña dos veces en el mismo río'.", options: ["Parménides", "Empédocles", "Heráclito", "Demócrito"], answer: 2 },
+                    { value: 600, question: "Postuló que el ser es uno, inmutable y eterno, negando la realidad del cambio.", options: ["Pitágoras", "Parménides", "Jenófanes", "Zenón de Elea"], answer: 1 },
+                    { value: 800, question: "Introdujo el concepto del 'Nous' (Mente o Inteligencia) como fuerza ordenadora del universo.", options: ["Anaxágoras", "Leucipo", "Demócrito", "Anaximandro"], answer: 0 },
+                    { value: 1000, question: "Propuso que todo está compuesto por cuatro raíces elementales: tierra, agua, aire y fuego, movidos por el Amor y el Odio.", options: ["Empédocles", "Anaxímenes", "Pitágoras", "Heráclito"], answer: 0 }
+                ]
+            },
+            {
+                category: "Platón",
+                questions: [
+                    { value: 200, question: "Famosa alegoría platónica que describe la ignorancia humana encadenada frente a sombras proyectadas.", options: ["Mito de Er", "Alegoría de la Caverna", "Mito del Carro Alado", "Metáfora de la Línea"], answer: 1 },
+                    { value: 400, question: "Diálogo en el que Platón describe su modelo de Estado ideal y la justicia.", options: ["El Banquete", "Fedón", "La República", "Apología de Sócrates"], answer: 2 },
+                    { value: 600, question: "Según la epistemología platónica, conocer no es aprender algo nuevo, sino...", options: ["Observar la naturaleza", "Recordar (Anamnesis)", "Consultar al oráculo", "Debatir con otros"], answer: 1 },
+                    { value: 800, question: "En el mito del carro alado, el caballo negro representa:", options: ["La razón (alma racional)", "El valor (alma irascible)", "Los apetitos (alma concupiscible)", "La divinidad"], answer: 2 },
+                    { value: 1000, question: "En su ontología dualista, ¿cómo llama Platón al mundo perfecto, inmutable y eterno?", options: ["Mundo Sensible", "Mundo Inteligible (o de las Ideas)", "El Purgatorio", "El Hades"], answer: 1 }
+                ]
+            },
+            {
+                category: "Aristóteles",
+                questions: [
+                    { value: 200, question: "Aristóteles fundó su propia escuela filosófica en Atenas, conocida como:", options: ["La Academia", "El Liceo", "La Estoa", "El Jardín"], answer: 1 },
+                    { value: 400, question: "En su ética, sostiene que la virtud es el 'justo medio' entre dos extremos, buscando alcanzar la:", options: ["Apatía (Apatheia)", "Felicidad (Eudaimonia)", "Ataraxia", "Ignorancia"], answer: 1 },
+                    { value: 600, question: "Teoría aristotélica que explica que las sustancias están compuestas por materia y forma.", options: ["Hilemorfismo", "Atomismo", "Mecanicismo", "Dualismo platónico"], answer: 0 },
+                    { value: 800, question: "Para explicar el cambio, Aristóteles utiliza los conceptos de 'acto' (lo que algo es ahora) y...", options: ["Potencia (lo que puede llegar a ser)", "Sustancia (la esencia inmutable)", "Accidente (cualidad no esencial)", "Causa primera"], answer: 0 },
+                    { value: 1000, question: "¿Cuál de las 'Cuatro Causas' aristotélicas se refiere al propósito o fin para el cual algo existe?", options: ["Causa Material", "Causa Formal", "Causa Eficiente", "Causa Final"], answer: 3 }
+                ]
+            },
+            {
+                category: "Estoicismo",
+                questions: [
+                    { value: 200, question: "Filósofo fenicio que fundó la escuela estoica en Atenas, enseñando en el 'Pórtico Pintado'.", options: ["Epicuro", "Zenón de Citio", "Diógenes", "Pirrón"], answer: 1 },
+                    { value: 400, question: "Famoso emperador romano y filósofo estoico, autor de las 'Meditaciones'.", options: ["Nerón", "Marco Aurelio", "Augusto", "Calígula"], answer: 1 },
+                    { value: 600, question: "Concepto central estoico que divide el mundo en 'cosas que podemos controlar' y 'cosas que no podemos controlar'.", options: ["La Dicotomía del Control", "El Eterno Retorno", "El Amor Fati", "La Ataraxia"], answer: 0 },
+                    { value: 800, question: "Filósofo estoico, antiguo esclavo romano, cuyas enseñanzas fueron recopiladas en el 'Enquiridión' (Manual).", options: ["Séneca", "Crisipo", "Epicteto", "Cleantes"], answer: 2 },
+                    { value: 1000, question: "El estado ideal de tranquilidad mental y liberación de las pasiones perturbadoras para los estoicos se llama:", options: ["Eudaimonia", "Apatheia (Apatía)", "Hedoné", "Catarsis"], answer: 1 }
+                ]
+            },
+            {
+                category: "Otras Escuelas",
+                questions: [
+                    { value: 200, question: "Fundador del Epicureísmo, sostenía que el placer (ausencia de dolor) es el fin de la vida.", options: ["Pirrón", "Epicuro", "Diógenes", "Plotino"], answer: 1 },
+                    { value: 400, question: "Escuela filosófica conocida por su rechazo a las convenciones sociales, viviendo de manera asética y 'perruna'. Su mayor representante fue Diógenes de Sinope.", options: ["Cinismo", "Escepticismo", "Epicureísmo", "Neoplatonismo"], answer: 0 },
+                    { value: 600, question: "El Escepticismo antiguo enseñaba a suspender el juicio (epojé) sobre todas las creencias para alcanzar la...", options: ["Verdad Absoluta", "Ataraxia (Tranquilidad del alma)", "Fama y riqueza", "Areté (Virtud)"], answer: 1 },
+                    { value: 800, question: "Sofista que afirmó: 'El hombre es la medida de todas las cosas', sentando las bases del relativismo.", options: ["Gorgias", "Protágoras", "Trasímaco", "Hipias"], answer: 1 },
+                    { value: 1000, question: "Fundador del Neoplatonismo en el siglo III d.C., su sistema filosófico emana del 'Uno'.", options: ["Porfirio", "Proclo", "Plotino", "Jámblico"], answer: 2 }
+                ]
+            }
+        ];
+
+        // Elementos del DOM
+        const boardEl = document.getElementById('jeopardy-board');
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const modal = document.getElementById('question-modal');
+        const questionTextEl = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const modalValueEl = document.getElementById('modal-value');
+        const modalCategoryEl = document.getElementById('modal-category');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const feedbackMessage = document.getElementById('feedback-message');
+        
+        const startScreen = document.getElementById('start-screen');
+        const timeoutScreen = document.getElementById('timeout-screen');
+        const victoryScreen = document.getElementById('victory-screen');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtns = document.querySelectorAll('.restart-btn');
+
+        // Inicializar Tablero
+        function buildBoard() {
+            boardEl.innerHTML = ''; // Limpiar tablero
+
+            // 1. Crear Encabezados de Categoría
+            gameData.forEach(cat => {
+                const header = document.createElement('div');
+                header.className = 'jeopardy-header';
+                header.textContent = cat.category;
+                boardEl.appendChild(header);
+            });
+
+            // 2. Crear Celdas de Preguntas (Matriz 5x5)
+            // Recorremos por filas de valor (200, 400, 600, 800, 1000)
+            for (let i = 0; i < 5; i++) {
+                gameData.forEach((cat, catIndex) => {
+                    const qData = cat.questions[i];
+                    const cell = document.createElement('div');
+                    cell.className = 'jeopardy-cell';
+                    cell.textContent = `$${qData.value}`;
+                    
+                    // Almacenar datos en la celda para fácil acceso
+                    cell.dataset.category = cat.category;
+                    cell.dataset.value = qData.value;
+                    cell.dataset.catIndex = catIndex;
+                    cell.dataset.qIndex = i;
+
+                    cell.addEventListener('click', () => handleCellClick(cell, qData, cat.category));
+                    boardEl.appendChild(cell);
+                });
+            }
+        }
+
+        function handleCellClick(cell, qData, categoryName) {
+            if (cell.classList.contains('disabled')) return;
+
+            currentQuestionData = qData;
+            currentCellElement = cell;
+
+            // Preparar Modal
+            modalCategoryEl.textContent = categoryName;
+            modalValueEl.textContent = `$${qData.value}`;
+            questionTextEl.textContent = qData.question;
+            
+            // Limpiar opciones anteriores y estados
+            optionsContainer.innerHTML = '';
+            feedbackMessage.className = 'mt-4 text-xl font-bold h-8 hidden';
+            feedbackMessage.textContent = '';
+            closeModalBtn.style.display = 'none';
+
+            // Crear botones de opciones
+            qData.options.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = opt;
+                btn.onclick = () => handleAnswer(index, btn);
+                optionsContainer.appendChild(btn);
+            });
+
+            // Mostrar Modal
+            modal.classList.add('active');
+        }
+
+        function handleAnswer(selectedIndex, btnElement) {
+            // Deshabilitar todos los botones para evitar múltiples clics
+            const allBtns = optionsContainer.querySelectorAll('.option-btn');
+            allBtns.forEach(b => {
+                b.disabled = true;
+                b.style.cursor = 'default';
+            });
+
+            const isCorrect = selectedIndex === currentQuestionData.answer;
+            const value = currentQuestionData.value;
+
+            feedbackMessage.classList.remove('hidden');
+
+            if (isCorrect) {
+                // Correcto
+                btnElement.classList.add('correct');
+                score += value;
+                feedbackMessage.textContent = "¡CORRECTO!";
+                feedbackMessage.classList.add('text-green-400');
+            } else {
+                // Incorrecto
+                btnElement.classList.add('incorrect');
+                score -= value;
+                feedbackMessage.textContent = "INCORRECTO";
+                feedbackMessage.classList.add('text-red-400');
+                
+                // Resaltar la respuesta correcta
+                allBtns[currentQuestionData.answer].classList.add('correct');
+            }
+
+            updateScoreDisplay();
+            
+            // Marcar celda en el tablero como jugada
+            currentCellElement.classList.add('disabled');
+            answeredQuestions++;
+
+            // Mostrar botón para cerrar/continuar
+            closeModalBtn.style.display = 'block';
+        }
+
+        closeModalBtn.addEventListener('click', () => {
+            modal.classList.remove('active');
+            checkGameEnd();
+        });
+
+        // Utilidades de Puntuación
+        function updateScoreDisplay() {
+            // Formato monetario simple, permitiendo negativos
+            const prefix = score < 0 ? "-$" : "$";
+            scoreEl.textContent = `${prefix}${Math.abs(score)}`;
+            
+            if (score < 0) {
+                scoreEl.style.color = '#ef4444'; // Rojo si está en negativo
+            } else {
+                scoreEl.style.color = '#fbbf24'; // Amarillo/Oro
+            }
+        }
+
+        // Sistema de Temporizador
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = formatTime(timeLeft);
+
+                if (timeLeft <= 30) {
+                    timerEl.classList.add('warning');
+                }
+
+                if (timeLeft <= 0) {
+                    endGame('timeout');
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerEl.classList.remove('warning');
+        }
+
+        function checkGameEnd() {
+            if (answeredQuestions >= totalQuestions) {
+                endGame('victory');
+            }
+        }
+
+        function endGame(reason) {
+            stopTimer();
+            // Asegurarse de cerrar modal si estuviera abierto
+            modal.classList.remove('active'); 
+
+            if (reason === 'timeout') {
+                document.getElementById('final-score-timeout').textContent = scoreEl.textContent;
+                timeoutScreen.classList.add('active');
+            } else if (reason === 'victory') {
+                document.getElementById('final-score-victory').textContent = scoreEl.textContent;
+                victoryScreen.classList.add('active');
+                triggerConfetti();
+            }
+        }
+
+        function triggerConfetti() {
+            var duration = 3 * 1000;
+            var animationEnd = Date.now() + duration;
+            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 110 };
+
+            function randomInRange(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            var interval = setInterval(function() {
+                var timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                var particleCount = 50 * (timeLeft / duration);
+                confetti(Object.assign({}, defaults, { particleCount,
+                    origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+                }));
+                confetti(Object.assign({}, defaults, { particleCount,
+                    origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+                }));
+            }, 250);
+        }
+
+        function initGame() {
+            // Resetear variables
+            score = 0;
+            timeLeft = 10 * 60;
+            answeredQuestions = 0;
+            
+            updateScoreDisplay();
+            timerEl.textContent = formatTime(timeLeft);
+            
+            // Ocultar pantallas de fin
+            timeoutScreen.classList.remove('active');
+            victoryScreen.classList.remove('active');
+            startScreen.classList.remove('active');
+
+            // Reconstruir tablero para limpiar celdas deshabilitadas
+            buildBoard();
+            
+            // Iniciar tiempo
+            startTimer();
+        }
+
+        // Event Listeners
+        startBtn.addEventListener('click', initGame);
+        
+        restartBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Volver a la pantalla de inicio primero, o empezar directo
+                startScreen.classList.add('active');
+                timeoutScreen.classList.remove('active');
+                victoryScreen.classList.remove('active');
+            });
+        });
+
+        // Configuración inicial al cargar la página
+        window.addEventListener('DOMContentLoaded', () => {
+            // Solo construir el tablero visualmente detrás de la pantalla de inicio
+            buildBoard(); 
+        });
+
+    </script>
+</body>
+</html>
